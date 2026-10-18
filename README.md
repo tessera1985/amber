@@ -36,16 +36,15 @@ Menu: Save Tweet · Open Saved Tweets Folder · Choose Save Folder… · Change 
 
 Data comes from [FxTwitter](https://github.com/FixTweet/FxTwitter)'s public API, with X's embed service as a fallback (cuts off long posts; the page says so). Neither is official, so either can break.
 
-## How it's built
+## For developers
 
-- Swift + AppKit, macOS 14+.
+You don't need this to use Amber.
+
+- Swift + AppKit, macOS 15 or newer.
 - Hotkey and recorder: [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) by Sindre Sorhus.
-- The saving itself is `Resources/save-tweet`, a zsh script using `curl` and `jq` (both built into macOS 15+). Amber runs it and shows its last line.
-- GitHub Actions builds the app on a macOS runner (`.github/workflows/build.yml`). Push a `v*` tag to publish a Release.
-
-To build locally: `brew install xcodegen && xcodegen generate && open Amber.xcodeproj`.
-
-The script works on its own too: `zsh Resources/save-tweet "https://x.com/user/status/123"`.
+- The saving is done by `Resources/save-tweet`, a zsh script using `curl` and `jq` (both built into macOS 15+). Amber runs it and shows its last line. It also works on its own: `zsh Resources/save-tweet "https://x.com/user/status/123"`.
+- GitHub Actions builds the app (`.github/workflows/build.yml`). Pushing a `v*` tag publishes a Release.
+- To build on your own Mac: `brew install xcodegen && xcodegen generate && open Amber.xcodeproj`.
 
 ## Why macOS warns you the first time
 

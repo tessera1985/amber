@@ -3,7 +3,7 @@ name: Amber
 options:
   bundleIdPrefix: io.github.tessera1985
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "15.0"
 packages:
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
