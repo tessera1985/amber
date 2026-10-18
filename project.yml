@@ -1,0 +1,44 @@
+# Xcode project spec. CI runs `xcodegen generate` to make Amber.xcodeproj, then builds it.
+name: Amber
+options:
+  bundleIdPrefix: io.github.tessera1985
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: 2.0.0
+targets:
+  Amber:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: Assets.xcassets
+      - path: Resources/save-tweet
+        buildPhase: resources
+    dependencies:
+      - package: KeyboardShortcuts
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: Amber
+        CFBundleDisplayName: Amber
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.utilities
+        NSAppleEventsUsageDescription: Amber reads the address of the tab in front to find the tweet you want to save.
+        NSHumanReadableCopyright: MIT License
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.tessera1985.amber
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_APP_SANDBOX: NO

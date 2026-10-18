@@ -1,0 +1,5 @@
+Amber.xcodeproj/
+build/
+.DS_Store
+*.zip
+Info.plist

@@ -1,0 +1,205 @@
+#!/bin/zsh
+# save-tweet <tweet url>
+# Saves a tweet (text, links, photos, video, quoted tweet) as one .html file with
+# everything packed inside, so it survives the tweet, the account, or the bookmark
+# being deleted, and works with no internet.
+# Needs only curl and jq (both ship with macOS 15+).
+
+set -euo pipefail
+
+DEST="${TWEET_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Saved Tweets}"
+
+# One line of output, shown by Amber as a notification.
+# Failures exit 0 too, so the message is always the last line of output.
+notify() { print -r -- "$1"; print -r -- "result: $1" >> "$LOG" }
+
+# What happened on the last run, for troubleshooting. Amber sets TWEET_SAVER_LOG.
+LOG="${TWEET_SAVER_LOG:-${0:A:h}/last-run.log}"
+mkdir -p "${LOG:h}" 2>/dev/null || true
+print -r -- "$(date '+%F %T') args: $*" > "$LOG" 2>/dev/null || LOG=/dev/null
+
+# Where the tweet link comes from, first match wins:
+#   1. whatever was passed in
+#   2. the browser tab in front, if it's showing a single tweet (Chrome, Safari, and Chrome-like browsers)
+#   3. the clipboard, so "Copy link" then the hotkey works from the timeline
+tweet_id() { print -r -- "$1" | grep -oE '/status(es)?/[0-9]+' | grep -oE '[0-9]+' | head -1 || true }
+
+# Runs a command, but gives up after $1 seconds (e.g. stuck on a hidden permission prompt).
+with_timeout() {
+  local secs=$1; shift
+  "$@" > "$tmp_out" 2>> "$LOG" &
+  local pid=$!
+  ( sleep "$secs"; kill "$pid" 2>/dev/null ) > /dev/null 2>&1 &
+  local watcher=$!
+  wait "$pid" 2>/dev/null
+  kill "$watcher" 2>/dev/null
+  cat "$tmp_out"
+}
+tmp_out=$(mktemp)
+
+front_tab_url() {
+  command -v lsappinfo >/dev/null || return 0
+  local app=$(lsappinfo info -only name "$(lsappinfo front)" 2>/dev/null | sed -n 's/.*"LSDisplayName"="\(.*\)"/\1/p')
+  print -r -- "front app: $app" >> "$LOG"
+  case "$app" in
+    Safari) with_timeout 5 osascript -e 'tell application "Safari" to get URL of current tab of front window' ;;
+    "Google Chrome"|"Brave Browser"|"Microsoft Edge"|Arc)
+      with_timeout 5 osascript -e "tell application \"$app\" to get URL of active tab of front window" ;;
+  esac
+}
+
+url="$*"
+id=$(tweet_id "$url")
+if [[ -z "$id" ]]; then
+  url=$(front_tab_url || true)
+  print -r -- "tab url: $url" >> "$LOG"
+  id=$(tweet_id "$url")
+fi
+if [[ -z "$id" ]] && command -v pbpaste >/dev/null; then
+  url=$(pbpaste 2>/dev/null || true)
+  print -r -- "clipboard: ${url[1,200]}" >> "$LOG"
+  id=$(tweet_id "$url")
+fi
+rm -f "$tmp_out"
+if [[ -z "$id" ]]; then
+  notify "Not saved: no tweet found. Open the tweet, or copy its link, then try again."
+  exit 0
+fi
+
+mkdir -p "$DEST"
+# Already saved? Each page starts with "<!doctype html><!-- tweet-id: N -->"; older saves had the ID in the name.
+for f in "$DEST"/*.html(N) "$DEST"/*"($id)"*(N); do
+  if [[ "$f" == *"($id)"* ]] || head -c 100 "$f" | grep -q "tweet-id: $id "; then
+    notify "Already saved: ${${f:t}%.html}"
+    exit 0
+  fi
+done
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Main source: FxTwitter (clean data incl. full video links).
+# Fallback: X's own embed service (cuts off long tweets).
+source_name=fxtwitter
+if ! curl -fsS -m 30 "https://api.fxtwitter.com/i/status/$id" -o "$tmp/raw.json" \
+   || [[ "$(jq -r '.code' "$tmp/raw.json" 2>/dev/null)" != 200 ]]; then
+  source_name=syndication
+  if ! curl -fsS -m 30 "https://cdn.syndication.twimg.com/tweet-result?id=$id&token=x" -o "$tmp/raw.json" \
+     || [[ "$(jq -r '.id_str // empty' "$tmp/raw.json" 2>/dev/null)" != "$id" ]]; then
+    notify "Not saved: couldn't fetch tweet $id. It may be deleted or private."
+    exit 0
+  fi
+  # Reshape the embed response to look like FxTwitter's so one renderer handles both.
+  jq '. as $r | {tweet: {
+        id: .id_str,
+        url: "https://x.com/\(.user.screen_name)/status/\(.id_str)",
+        text: (reduce (.entities.urls // [])[] as $u (.text; sub($u.url; $u.expanded_url))
+               | reduce ($r.entities.media // [])[] as $m (.; sub(" ?" + $m.url; ""))),
+        created_timestamp: (.created_at | sub("\\.\\d+Z$"; "Z") | fromdateiso8601),
+        author: {name: .user.name, screen_name: .user.screen_name, avatar_url: .user.profile_image_url_https},
+        likes: .favorite_count, replies: .conversation_count,
+        media: {all: [(.mediaDetails // [])[] |
+          if .video_info then {type: "video", url: ([.video_info.variants[] | select(.content_type == "video/mp4")]
+                                                    | max_by(.bitrate // 0) | .url)}
+          else {type: "photo", url: .media_url_https} end]},
+        truncated: (.note_tweet != null),
+        quote: null
+      }}' "$tmp/raw.json" > "$tmp/tweet.json"
+else
+  cp "$tmp/raw.json" "$tmp/tweet.json"
+fi
+
+# File name: "@marcgmbh - made a website to turn images into playlists"
+# (the tweet's first line, without links, cut at a word to about 60 characters).
+name=$(jq -r '.tweet as $t
+  | ($t.text // "" | gsub("https?://\\S+"; "") | split("\n") | map(gsub("[/:\\\\*?\"<>|]"; "") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" "))
+     | map(select(. != "")) | first // ""
+     | reduce split(" ")[] as $w ({s: "", full: false};
+         if .full then . elif (.s | length) + ($w | length) + 1 > 60 and .s != "" then .full = true
+         else .s = (if .s == "" then $w else .s + " " + $w end) end)
+     | .s) as $words
+  | "@\($t.author.screen_name)\(if $words == "" then "" else " - " + $words end)"' "$tmp/tweet.json")
+# Two different tweets with the same name get " 2", " 3", ...
+base=$name; n=1
+while [[ -e "$DEST/$name.html" ]]; do n=$((n + 1)); name="$base $n"; done
+mkdir -p "$tmp/media"
+
+# Shared jq helpers: local file names for each media item, for the main tweet ("") and quote ("quote_").
+jq_lib='
+def ext: (.url | split("?")[0] | split(".") | last | ascii_downcase) as $e
+         | if .type == "photo" then (if ($e | test("^(jpg|jpeg|png|gif|webp)$")) then $e else "jpg" end) else "mp4" end;
+def files($p): [(.media.all // []) | to_entries[] | .value + {file: "\($p)\(if .value.type == "photo" then "photo" else "video" end)_\(.key + 1).\(.value | ext)"}];
+def when: .created_timestamp | strftime("%B %-d, %Y at %H:%M UTC");
+'
+
+# Download media at full size, then turn each file into base64 so it can live inside the page.
+{
+  jq -r "$jq_lib"'.tweet | files("")[] | "\(.url)\t\(.file)"' "$tmp/tweet.json"
+  jq -r "$jq_lib"'.tweet.quote // empty | files("quote_")[] | "\(.url)\t\(.file)"' "$tmp/tweet.json"
+  jq -r '.tweet.author.avatar_url // empty | sub("_normal\\."; "_400x400.") | "\(.)\tavatar.jpg"' "$tmp/tweet.json"
+} | while IFS=$'\t' read -r murl mfile; do
+  [[ "$murl" == *pbs.twimg.com/media/* && "$murl" != *name=* ]] && murl="$murl?name=orig"
+  curl -fsSL -m 300 "$murl" -o "$tmp/media/$mfile" || print -ru2 -- "warning: couldn't download $mfile"
+done
+
+# Videos over this size stay as a separate .mp4 next to the page; browsers struggle with huge pages.
+max_embed=$(( 150 * 1024 * 1024 ))
+: > "$tmp/media.jsonl"
+for f in "$tmp"/media/*(N); do
+  case "${f:e}" in
+    jpg|jpeg) mime=image/jpeg ;; png) mime=image/png ;; gif) mime=image/gif ;; webp) mime=image/webp ;; *) mime=video/mp4 ;;
+  esac
+  if (( $(wc -c < "$f") > max_embed )); then
+    side="$name ${f:t}"
+    mv "$f" "$DEST/$side"
+    jq -cn --arg k "${f:t}" --arg v "$side" '{k: $k, v: ($v | @uri)}' >> "$tmp/media.jsonl"
+  else
+    base64 < "$f" | tr -d '\n' | jq -cRs --arg k "${f:t}" --arg m "$mime" '{k: $k, v: "data:\($m);base64,\(.)"}' >> "$tmp/media.jsonl"
+  fi
+done
+
+# The page: opens in any browser, links clickable, photos and video play from inside the file.
+jq -r --slurpfile m "$tmp/media.jsonl" --arg fallback "$source_name" "$jq_lib"'
+($m | map({(.k): .v}) | add // {}) as $data |
+def linkify: @html
+  | gsub("(?<u>https?://[^\\s<]+)"; "<a href=\"\(.u)\">\(.u)</a>")
+  | gsub("(?<a>^|[^\\w/])@(?<h>\\w{1,15})"; "\(.a)<a href=\"https://x.com/\(.h)\">@\(.h)</a>")
+  | gsub("\n"; "<br>");
+def media_html($p): files($p) | map(select($data[.file]) |
+    if .type == "photo" then "<img src=\"\($data[.file])\" alt=\"\">"
+    else "<video controls preload=\"metadata\" data-src=\"\($data[.file])\"></video>" end) | join("");
+def card($t; $p; $avatar):
+  "<div class=\"head\">\(if $avatar and $data["avatar.jpg"] then "<img class=\"av\" src=\"\($data["avatar.jpg"])\" alt=\"\">" else "" end)"
+  + "<div><b>\($t.author.name // "" | @html)</b> <a href=\"https://x.com/\($t.author.screen_name)\">@\($t.author.screen_name)</a></div></div>"
+  + (if $t.replying_to then "<p class=\"meta\">Replying to <a href=\"https://x.com/\($t.replying_to)\">@\($t.replying_to)</a>"
+       + (if $t.replying_to_status then " (<a href=\"https://x.com/\($t.replying_to)/status/\($t.replying_to_status)\">original</a>)" else "" end) + "</p>" else "" end)
+  + "<p class=\"text\">\($t.text // "" | linkify)</p>"
+  + "<div class=\"media\">\($t | media_html($p))</div>";
+.tweet as $t
+| "<!doctype html><!-- tweet-id: \($t.id) --><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
++ "<title>@\($t.author.screen_name): \($t.text // "" | .[:60] | @html)</title><style>"
++ "body{font:17px/1.45 -apple-system,system-ui,sans-serif;max-width:600px;margin:32px auto;padding:0 16px;color:#0f1419;background:#fff}"
++ "@media(prefers-color-scheme:dark){body{color:#e7e9ea;background:#000}.quote,.note{border-color:#333!important}}"
++ "a{color:#1d9bf0;text-decoration:none}a:hover{text-decoration:underline}.head{display:flex;gap:10px;align-items:center}"
++ ".av{width:48px;height:48px;border-radius:50%}.text{white-space:normal;font-size:19px}.meta{color:#71767b;font-size:15px}"
++ ".media img,.media video{width:100%;border-radius:14px;margin-top:8px;display:block}"
++ ".quote{border:1px solid #cfd9de;border-radius:14px;padding:12px;margin-top:12px}.quote .text{font-size:17px}"
++ ".note{border:1px solid #cfd9de;border-radius:14px;padding:12px;margin-top:12px}"
++ "</style></head><body>"
++ card($t; ""; true)
++ (if $t.quote then "<div class=\"quote\">" + card($t.quote; "quote_"; false)
+     + "<p class=\"meta\"><a href=\"\($t.quote.url)\">Quoted post</a></p></div>" else "" end)
++ (if $t.community_note then "<div class=\"note\"><b>Community note</b><p>\($t.community_note.text // "" | linkify)</p></div>" else "" end)
++ "<p class=\"meta\">\($t | when) · \($t.likes // 0) likes · \($t.retweets // 0) reposts · \($t.replies // 0) replies</p>"
++ "<p class=\"meta\">Original: <a href=\"\($t.url)\">\($t.url)</a><br>Saved \(now | strftime("%Y-%m-%d"))"
++ (if $fallback == "syndication" and $t.truncated then "<br>Saved from the fallback source, which cuts off long tweets. Text may be incomplete." else "" end)
++ "</p>"
+# Videos are stored as base64 and turned into a playable file when the page opens (seeking works better than with a data: URL).
++ "<script>document.querySelectorAll(\"video[data-src]\").forEach(v=>{const s=v.dataset.src;"
++ "if(!s.startsWith(\"data:\")){v.src=s;return}const b=atob(s.slice(s.indexOf(\",\")+1)),a=new Uint8Array(b.length);"
++ "for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);v.src=URL.createObjectURL(new Blob([a],{type:\"video/mp4\"}))})</script>"
++ "<script type=\"application/json\" id=\"raw-tweet\">\(input | tojson | gsub("</"; "<\\/"))</script>"
++ "</body></html>"
+' "$tmp/tweet.json" "$tmp/raw.json" > "$DEST/$name.html"
+
+notify "Saved: $name"
