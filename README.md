@@ -43,7 +43,7 @@ You don't need this to use Amber.
 - Swift + AppKit, macOS 15 or newer.
 - Hotkey and recorder: [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) by Sindre Sorhus.
 - The saving is done by `Resources/save-tweet`, a zsh script using `curl` and `jq` (both built into macOS 15+). Amber runs it and shows its last line. It also works on its own: `zsh Resources/save-tweet "https://x.com/user/status/123"`.
-- GitHub Actions builds the app (`.github/workflows/build.yml`). Pushing a `v*` tag publishes a Release.
+- GitHub Actions builds the app (`.github/workflows/build.yml`). Each build of `main` publishes the Release for the version in `project.yml`.
 - To build on your own Mac: `brew install xcodegen && xcodegen generate && open Amber.xcodeproj`.
 
 ## Why macOS warns you the first time

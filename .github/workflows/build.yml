@@ -3,7 +3,6 @@ name: Build
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -41,8 +40,20 @@ jobs:
           name: Amber
           path: Amber.zip
 
-      - name: Release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Every build of main publishes (or refreshes) the Release for the version in project.yml.
+      - name: Read version
+        if: github.ref == 'refs/heads/main'
+        id: version
+        run: echo "version=$(sed -n 's/.*MARKETING_VERSION: "\(.*\)"/\1/p' project.yml)" >> "$GITHUB_OUTPUT"
+
+      - name: Release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Amber ${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
           files: Amber.zip
+          body: |
+            Download **Amber.zip** below, unzip, drag Amber into Applications.
+            First launch: see [Install](https://github.com/tessera1985/amber#install).
