@@ -8,6 +8,7 @@ extension KeyboardShortcuts.Name {
     static let saveTweet = Self("saveTweet", default: .init(.s, modifiers: [.control, .option, .command]))
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private let saveItem = NSMenuItem(title: "Save Tweet", action: #selector(saveTweet), keyEquivalent: "")
@@ -96,15 +97,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     }
 
     // Show banners even though Amber counts as the "front" app for its own notifications.
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
-                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .list])
     }
 
     // Clicking a notification opens the folder.
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
-                                withCompletionHandler completionHandler: @escaping () -> Void) {
-        DispatchQueue.main.async { self.openFolder() }
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
+        Task { @MainActor in self.openFolder() }
         completionHandler()
     }
 

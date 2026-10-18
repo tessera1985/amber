@@ -2,6 +2,7 @@ import AppKit
 import KeyboardShortcuts
 
 // Small window for changing the Save Tweet hotkey.
+@MainActor
 final class HotkeyWindowController: NSWindowController {
     convenience init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 130),
