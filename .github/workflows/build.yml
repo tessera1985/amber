@@ -44,7 +44,8 @@ jobs:
       - name: Read version
         if: github.ref == 'refs/heads/main'
         id: version
-        run: echo "version=$(sed -n 's/.*MARKETING_VERSION: "\(.*\)"/\1/p' project.yml)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(sed -n 's/.*MARKETING_VERSION: "\(.*\)"/\1/p' project.yml)" >> "$GITHUB_OUTPUT"
 
       - name: Release
         if: github.ref == 'refs/heads/main'
