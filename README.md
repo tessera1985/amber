@@ -47,11 +47,11 @@ To build locally: `brew install xcodegen && xcodegen generate && open Amber.xcod
 
 The script works on its own too: `zsh Resources/save-tweet "https://x.com/user/status/123"`.
 
-## Signing
+## Why macOS warns you the first time
 
-Amber is ad-hoc signed only. Consequences:
+Apple wants every Mac app stamped with a registered developer ID and checked by Apple. That costs $99 a year, and Amber doesn't have it. So:
 
-- First launch needs "Open Anyway" (above).
-- After each update, macOS may ask again for browser-control permission, because it can't tell it's the same app.
+- The first time you open Amber, macOS says it can't verify it. You click **Open Anyway** once (see Install).
+- After you update Amber, macOS may not recognize it as the same app and ask again for permission to read your browser tab. Click **Allow** again.
 
-A paid Apple Developer account ($99/year) would let Amber be signed and notarized: no "Open Anyway", permissions survive updates.
+That's all. If Amber ever gets Apple's stamp, both go away.
