@@ -19,8 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let icon = NSImage(systemSymbolName: "drop.fill", accessibilityDescription: "Amber")
+        let icon = NSImage(named: "MenuIcon")
         icon?.isTemplate = true
+        icon?.accessibilityDescription = "Amber"
         statusItem.button?.image = icon
         statusItem.menu = buildMenu()
 
