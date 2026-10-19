@@ -56,5 +56,5 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: Amber.zip
           body: |
-            Download **Amber.zip** below, unzip, drag Amber into Applications.
+            Download **Amber.zip** below (not "Source code", which has no app inside), unzip, drag Amber into Applications.
             First launch: see [Install](https://github.com/tessera1985/amber#install).

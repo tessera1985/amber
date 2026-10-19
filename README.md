@@ -8,8 +8,9 @@ Not affiliated with X Corp.
 
 ## Install
 
-1. Download `Amber.zip` from the latest [Release](../../releases) (or from a build under [Actions](../../actions)).
-2. Double-click the zip, drag **Amber** into **Applications**.
+1. Download **[Amber.zip](https://github.com/tessera1985/amber/releases/latest/download/Amber.zip)**.
+   - Use this link. Don't use the green **Code → Download ZIP** button or **Source code (zip)** on the Release page: those are the source code and have no app inside.
+2. Open your **Downloads** folder. Double-click `Amber.zip` to unzip it (Safari may have unzipped it already). You get an app called **Amber** with an amber stone icon. Drag it into **Applications**.
 3. Open Amber. macOS blocks it the first time because it isn't signed with a paid Apple Developer account:
    - Click **Done** on the warning.
    - Open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to "Amber was blocked", then confirm.
