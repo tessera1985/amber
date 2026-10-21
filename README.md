@@ -21,7 +21,7 @@ Not affiliated with X Corp.
 
 Hotkey, or the amber stone in the menu bar → **Save Tweet**. Amber looks for the post in this order:
 
-1. The browser tab in front, if it's showing one post (Chrome, Safari, Brave, Edge, Arc).
+1. The browser tab in front, if it's showing one post (Chrome, Safari, Brave, Edge, Arc, Search).
 2. The clipboard (on the timeline: Share → **Copy link**, then the hotkey).
 
 Menu: Save Tweet · Open Saved Tweets Folder · Choose Save Folder… · Change Hotkey… · Launch at Login · Show Last Run Log · Quit.

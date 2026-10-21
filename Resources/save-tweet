@@ -20,7 +20,7 @@ print -r -- "$(date '+%F %T') args: $*" > "$LOG" 2>/dev/null || LOG=/dev/null
 
 # Where the tweet link comes from, first match wins:
 #   1. whatever was passed in
-#   2. the browser tab in front, if it's showing a single tweet (Chrome, Safari, and Chrome-like browsers)
+#   2. the browser tab in front, if it's showing a single tweet (Chrome, Safari, Search, and Chrome-like browsers)
 #   3. the clipboard, so "Copy link" then the hotkey works from the timeline
 tweet_id() { print -r -- "$1" | grep -oE '/status(es)?/[0-9]+' | grep -oE '[0-9]+' | head -1 || true }
 
@@ -43,6 +43,8 @@ front_tab_url() {
   print -r -- "front app: $app" >> "$LOG"
   case "$app" in
     Safari) with_timeout 5 osascript -e 'tell application "Safari" to get URL of current tab of front window' ;;
+    # Search by Office Commun (officecommun.com/search): Safari's words. By bundle ID, since "Search" is a common name.
+    Search) with_timeout 5 osascript -e 'tell application id "com.officecommun.search" to get URL of current tab of front window' ;;
     "Google Chrome"|"Brave Browser"|"Microsoft Edge"|Arc)
       with_timeout 5 osascript -e "tell application \"$app\" to get URL of active tab of front window" ;;
   esac
