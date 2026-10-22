@@ -38,15 +38,25 @@ with_timeout() {
 tmp_out=$(mktemp)
 
 front_tab_url() {
-  command -v lsappinfo >/dev/null || return 0
-  local app=$(lsappinfo info -only name "$(lsappinfo front)" 2>/dev/null | sed -n 's/.*"LSDisplayName"="\(.*\)"/\1/p')
-  print -r -- "front app: $app" >> "$LOG"
-  case "$app" in
-    Safari) with_timeout 5 osascript -e 'tell application "Safari" to get URL of current tab of front window' ;;
-    # Search by Office Commun (officecommun.com/search): Safari's words. By bundle ID, since "Search" is a common name.
-    Search) with_timeout 5 osascript -e 'tell application id "com.officecommun.search" to get URL of current tab of front window' ;;
-    "Google Chrome"|"Brave Browser"|"Microsoft Edge"|Arc)
-      with_timeout 5 osascript -e "tell application \"$app\" to get URL of active tab of front window" ;;
+  # Amber passes the app that was in front when the hotkey was pressed. Run on its own, ask lsappinfo.
+  local app=${FRONT_APP_NAME:-} bid=${FRONT_APP_ID:-}
+  if [[ -z "$app$bid" ]] && command -v lsappinfo >/dev/null; then
+    local asn=$(lsappinfo front 2>/dev/null)
+    app=$(lsappinfo info -only name "$asn" 2>/dev/null | sed -n 's/.*"LSDisplayName"="\(.*\)"/\1/p')
+    bid=$(lsappinfo info -only bundleid "$asn" 2>/dev/null | sed -n 's/.*"CFBundleIdentifier"="\(.*\)"/\1/p')
+  fi
+  print -r -- "front app: $app ($bid)" >> "$LOG"
+  [[ -n "$bid" ]] || return 0
+  # By bundle ID, so names like "Search" can't be confused with other apps.
+  case "$bid" in
+    # Safari's words. Search by Office Commun (officecommun.com/search) uses them too.
+    com.apple.Safari|com.apple.SafariTechnologyPreview|com.officecommun.*)
+      with_timeout 5 osascript -e "tell application id \"$bid\" to get URL of current tab of front window" ;;
+    com.google.Chrome*|com.brave.Browser*|com.microsoft.edgemac*|company.thebrowser.Browser)
+      with_timeout 5 osascript -e "tell application id \"$bid\" to get URL of active tab of front window" ;;
+    *)
+      [[ "$app" == Search ]] &&
+        with_timeout 5 osascript -e "tell application id \"$bid\" to get URL of current tab of front window" ;;
   esac
 }
 

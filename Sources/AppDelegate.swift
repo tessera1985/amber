@@ -76,8 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     @objc func saveTweet() {
         guard !saving else { return }
         saving = true
+        // Note the app in front now, while it's still the browser the user is looking at.
+        let front = NSWorkspace.shared.frontmostApplication
+        let frontApp = (name: front?.localizedName ?? "", id: front?.bundleIdentifier ?? "")
         DispatchQueue.global(qos: .userInitiated).async {
-            let message = Saver.run()
+            let message = Saver.run(frontApp: frontApp)
             DispatchQueue.main.async {
                 self.saving = false
                 self.show(message)

@@ -21,7 +21,7 @@ enum Settings {
 // Runs the bundled save-tweet script (zsh + curl + jq, all built into macOS 15+)
 // and returns its last line: "Saved: …", "Already saved: …" or "Not saved: …".
 enum Saver {
-    static func run() -> String {
+    static func run(frontApp: (name: String, id: String)) -> String {
         guard let script = Bundle.main.url(forResource: "save-tweet", withExtension: nil) else {
             return "Not saved: the saver script is missing from Amber."
         }
@@ -33,6 +33,8 @@ enum Saver {
         env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
         env["TWEET_DIR"] = Settings.saveFolder.path
         env["TWEET_SAVER_LOG"] = Settings.logFile.path
+        env["FRONT_APP_NAME"] = frontApp.name
+        env["FRONT_APP_ID"] = frontApp.id
         process.environment = env
 
         let output = Pipe()
